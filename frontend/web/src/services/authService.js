@@ -1,66 +1,39 @@
-// src/services/authService.js
-
 import api from './api';
 
 const AuthService = {
-  /**
-   * Register a new user
-   * POST /api/auth/register
-   */
-  register: async (username, email, password, fullName) => {
+  register: async (username, email, password, fullName, role = 'BARISTA') => {
     const response = await api.post('/api/auth/register', {
-      username,
-      email,
-      password,
-      fullName,
+      username, email, password, fullName, role,
     });
     return response.data;
   },
 
-  /**
-   * Login and store token
-   * POST /api/auth/login
-   */
   login: async (username, password) => {
     const response = await api.post('/api/auth/login', { username, password });
-    const { token, ...user } = response.data;
-
-    localStorage.setItem('jwt_token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-
-    return response.data;
+    const token = response.data?.data?.token || response.data?.token;
+    const user = response.data?.data?.user || response.data;
+    if (token) {
+      localStorage.setItem('bb_token', token);
+      localStorage.setItem('bb_user', JSON.stringify(user));
+    }
+    return user;
   },
 
-  /**
-   * Logout — clear storage
-   */
   logout: () => {
-    localStorage.removeItem('jwt_token');
-    localStorage.removeItem('user');
+    localStorage.removeItem('bb_token');
+    localStorage.removeItem('bb_user');
   },
 
-  /**
-   * Get current user profile
-   * GET /api/user/me
-   */
   getCurrentUser: async () => {
     const response = await api.get('/api/user/me');
-    return response.data;
+    return response.data?.data || response.data;
   },
 
-  /**
-   * Check if user is authenticated
-   */
-  isAuthenticated: () => {
-    return !!localStorage.getItem('jwt_token');
-  },
+  isAuthenticated: () => !!localStorage.getItem('bb_token'),
 
-  /**
-   * Get stored user info (from localStorage, no API call)
-   */
   getStoredUser: () => {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+    try { return JSON.parse(localStorage.getItem('bb_user')); }
+    catch { return null; }
   },
 };
 
