@@ -1,7 +1,7 @@
 package edu.cit.pacana.brewbatch.component;
 
-import edu.cit.pacana.brewbatch.model.User;
-import edu.cit.pacana.brewbatch.repository.UserRepository;
+import edu.cit.pacana.brewbatch.features.users.User;
+import edu.cit.pacana.brewbatch.features.users.UserRepository;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
