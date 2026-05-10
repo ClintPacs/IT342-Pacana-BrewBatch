@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import InventoryService from '../services/inventoryService';
 
 const navItems = [
   { path: '/dashboard', icon: '📊', label: 'Dashboard' },
@@ -8,13 +9,33 @@ const navItems = [
   { path: '/alerts',    icon: '⚠️',  label: 'Alerts' },
   { path: '/orders',    icon: '📋', label: 'Orders' },
   { path: '/suppliers', icon: '🏪', label: 'Suppliers' },
-  { path: '/admin',     icon: '⚙️',  label: 'Admin' },
 ];
+
+const adminItem = { path: '/admin', icon: '⚙️', label: 'Admin' };
 
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
+  const [alertCount, setAlertCount] = useState(0);
+
+  const visibleItems = isAdmin ? [...navItems, adminItem] : navItems;
+
+  useEffect(() => {
+    loadAlertCount();
+    const interval = setInterval(loadAlertCount, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  async function loadAlertCount() {
+    try {
+      const data = await InventoryService.getAlerts();
+      setAlertCount(data?.length || 0);
+    } catch (e) {
+      // Silent fail
+    }
+  }
 
   function handleLogout() {
     logout();
@@ -25,18 +46,25 @@ export default function Sidebar() {
     <aside style={s.sidebar}>
       <div style={s.logo}>☕ BrewBatch</div>
       <div style={s.section}>NAVIGATION</div>
-      {navItems.map(item => (
-        <div
-          key={item.path}
-          style={{
-            ...s.item,
-            ...(location.pathname === item.path ? s.active : {}),
-          }}
-          onClick={() => navigate(item.path)}
-        >
-          {item.icon} {item.label}
-        </div>
-      ))}
+      {visibleItems.map(item => {
+        const isAlertsItem = item.path === '/alerts';
+        return (
+          <div
+            key={item.path}
+            style={{
+              ...s.item,
+              ...(location.pathname === item.path ? s.active : {}),
+            }}
+            onClick={() => navigate(item.path)}
+          >
+            <span>{item.icon}</span>
+            <span style={{ flex: 1 }}>{item.label}</span>
+            {isAlertsItem && alertCount > 0 && (
+              <span style={s.badge}>{alertCount}</span>
+            )}
+          </div>
+        );
+      })}
       <button onClick={handleLogout} style={s.logoutBtn}>
         🚪 Logout
       </button>
@@ -96,5 +124,18 @@ const s = {
     borderRadius: 8,
     cursor: 'pointer',
     fontSize: 13,
+  },
+  badge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 20,
+    height: 20,
+    background: '#E74C3C',
+    color: '#fff',
+    borderRadius: '50%',
+    fontSize: 11,
+    fontWeight: 700,
+    flexShrink: 0,
   },
 };

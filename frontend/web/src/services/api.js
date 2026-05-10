@@ -1,4 +1,5 @@
 import axios from 'axios';
+import AuthService from './authService';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
@@ -13,13 +14,27 @@ api.interceptors.request.use((config) => {
   return config;
 }, (error) => Promise.reject(error));
 
+const isTokenFailure = (error) => {
+  const message = String(error.response?.data?.message || '').toLowerCase();
+  const url = String(error.config?.url || '').toLowerCase();
+
+  return (
+    message.includes('token') ||
+    message.includes('jwt') ||
+    message.includes('expired') ||
+    message.includes('invalid') ||
+    url.includes('/api/auth')
+  );
+};
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('bb_token');
-      localStorage.removeItem('bb_user');
-      window.location.href = '/login';
+    if (error.response?.status === 401 && isTokenFailure(error)) {
+      AuthService.logout();
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

@@ -69,13 +69,18 @@ export default function InventoryPage() {
     setError(''); setSuccess('');
   }
 
+  const parseNumberValue = (value) => {
+    if (value === '' || value === null || value === undefined) return undefined;
+    return Number(value);
+  };
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError(''); setSuccess('');
     const payload = {
       ...form,
-      currentStock: parseFloat(form.currentStock),
-      reorderThreshold: parseFloat(form.reorderThreshold),
+      currentStock: parseNumberValue(form.currentStock),
+      reorderThreshold: parseNumberValue(form.reorderThreshold),
     };
     try {
       if (editItem) {
