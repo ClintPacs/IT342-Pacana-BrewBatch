@@ -5,7 +5,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
-import com.example.brewbatch.network.SessionManager
+import com.example.brewbatch.features.auth.LoginScreen
+import com.example.brewbatch.features.auth.RegisterScreen
+import com.example.brewbatch.features.dashboard.DashboardScreen
+import com.example.brewbatch.shared.network.SessionManager
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -1,15 +1,15 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import PrivateRoute from './components/PrivateRoute';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import DashboardPage from './pages/DashboardPage';
-import InventoryPage from './pages/InventoryPage';
-import AlertsPage from './pages/AlertsPage';
-import OrdersPage from './pages/OrdersPage';
-import SuppliersPage from './pages/SuppliersPage';
-import AdminPage from './pages/AdminPage';
+import { AuthProvider } from './features/auth/AuthContext';
+import PrivateRoute from './shared/components/PrivateRoute';
+import LoginPage from './features/auth/LoginPage';
+import RegisterPage from './features/auth/RegisterPage';
+import DashboardPage from './features/dashboard/DashboardPage';
+import InventoryPage from './features/inventory/InventoryPage';
+import AlertsPage from './features/alerts/AlertsPage';
+import OrdersPage from './features/orders/OrdersPage';
+import SuppliersPage from './features/suppliers/SuppliersPage';
+import AdminPage from './features/admin/AdminPage';
 
 export default function App() {
   return (
