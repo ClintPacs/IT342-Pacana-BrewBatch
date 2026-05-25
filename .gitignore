@@ -1,3 +1,7 @@
-node_modules/ 
-backend/target/ 
- .idea/ 
+node_modules/
+backend/target/
+.idea/
+.vscode/
+frontend/web/build/
+*.iml
+local.properties

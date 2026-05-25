@@ -1,157 +1,111 @@
-// src/pages/LoginPage.js
+import React, { useState, useContext } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Eye, EyeOff } from 'lucide-react';
+import { AuthContext } from './AuthContext';
+import Button from '../../shared/components/ui/Button';
+import Input from '../../shared/components/ui/Input';
+import toast from 'react-hot-toast';
 
-import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from './AuthContext';
-
-const LoginPage = () => {
-  const [formData, setFormData] = useState({ username: '', password: '' });
-  const [error, setError] = useState('');
+export default function LoginPage() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  const { login } = useAuth();
+  const [shake, setShake] = useState(false);
+  const { login } = useContext(AuthContext);
   const navigate = useNavigate();
-  const location = useLocation();
-
-  const from = location.state?.from?.pathname || '/dashboard';
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-    setError('');
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
-
     try {
-      await login(formData.username, formData.password);
-      navigate(from, { replace: true });
+      const user = await login(username, password);
+      toast.success('Welcome back!');
+      // Redirect suppliers to their portal
+      const userRole = user?.role || '';
+      if (userRole === 'SUPPLIER') {
+        navigate('/supplier/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
-      const msg =
-        err.response?.data?.message ||
-        err.response?.data ||
-        'Invalid username or password.';
-      setError(msg);
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+      toast.error(err.response?.data?.message || 'Login failed');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <div style={styles.header}>
-          <h1 style={styles.logo}>☕</h1>
-          <h2 style={styles.title}>Welcome to BrewBatch</h2>
-          <p style={styles.subtitle}>Sign in to manage your coffee shop</p>
+    <div style={{
+      minHeight: '100vh',
+      background: '#FAF4EC',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px',
+      fontFamily: "'Inter', sans-serif",
+    }}>
+      <motion.div
+        animate={shake ? { x: [-8, 8, -6, 6, -4, 4, 0] } : { x: 0 }}
+        transition={{ duration: 0.4 }}
+        style={{
+          background: '#FFFFFF',
+          borderRadius: '16px',
+          boxShadow: '0 8px 32px rgba(59,31,10,0.14)',
+          padding: '40px 36px',
+          width: '100%',
+          maxWidth: '420px',
+        }}
+      >
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <span style={{
+            fontFamily: "'Playfair Display', Georgia, serif",
+            fontSize: '28px',
+            fontWeight: 700,
+            color: '#2E1503',
+            letterSpacing: '-0.02em',
+          }}>
+            ☕ BrewBatch
+          </span>
+          <p style={{ color: '#8B5E3C', fontSize: '14px', marginTop: '8px' }}>
+            Sign in to your account
+          </p>
         </div>
 
-        {error && <div style={styles.errorBox}>{error}</div>}
-
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Username</label>
-            <input
-              type="text"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              placeholder="Enter your username"
-              required
-              style={styles.input}
-            />
-          </div>
-
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Password</label>
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              placeholder="Enter your password"
-              required
-              style={styles.input}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{ ...styles.button, opacity: loading ? 0.7 : 1 }}
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <Input
+            label="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
+          <Input
+            label="Password"
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            endIcon={
+              showPassword
+                ? <EyeOff size={16} onClick={() => setShowPassword(false)} />
+                : <Eye size={16} onClick={() => setShowPassword(true)} />
+            }
+          />
+          <Button type="submit" variant="primary" size="lg" loading={loading} style={{ width: '100%', marginTop: '8px' }}>
+            Sign In
+          </Button>
         </form>
 
-        <p style={styles.footer}>
+        <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '13px', color: '#8B5E3C' }}>
           Don't have an account?{' '}
-          <Link to="/register" style={styles.link}>
-            Register here
+          <Link to="/register" style={{ color: '#6B3A1F', fontWeight: 600, textDecoration: 'none' }}>
+            Register
           </Link>
         </p>
-      </div>
+      </motion.div>
     </div>
   );
-};
-
-const styles = {
-  page: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F5E6D3',
-    padding: '20px',
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: '16px',
-    padding: '40px',
-    width: '100%',
-    maxWidth: '420px',
-    boxShadow: '0 8px 32px rgba(59,31,10,0.12)',
-  },
-  header: { textAlign: 'center', marginBottom: '28px' },
-  logo: { fontSize: '3rem', marginBottom: '8px' },
-  title: { margin: 0, color: '#3B1F0A', fontSize: '1.6rem' },
-  subtitle: { color: '#8B6E5A', marginTop: '6px', fontSize: '0.9rem' },
-  errorBox: {
-    backgroundColor: '#FDECEA',
-    color: '#C0392B',
-    border: '1px solid #FADBD8',
-    borderRadius: '8px',
-    padding: '12px',
-    marginBottom: '16px',
-    fontSize: '0.9rem',
-  },
-  form: { display: 'flex', flexDirection: 'column', gap: '18px' },
-  formGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  label: { color: '#3B1F0A', fontWeight: '600', fontSize: '0.9rem' },
-  input: {
-    padding: '12px 14px',
-    borderRadius: '8px',
-    border: '1.5px solid #D4A574',
-    fontSize: '1rem',
-    outline: 'none',
-    transition: 'border-color 0.2s',
-  },
-  button: {
-    padding: '13px',
-    backgroundColor: '#6B4226',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '1rem',
-    fontWeight: '600',
-    cursor: 'pointer',
-    marginTop: '6px',
-    transition: 'background-color 0.2s',
-  },
-  footer: { textAlign: 'center', marginTop: '20px', color: '#8B6E5A', fontSize: '0.9rem' },
-  link: { color: '#6B4226', fontWeight: '600', textDecoration: 'none' },
-};
-
-export default LoginPage;
+}

@@ -2,6 +2,7 @@ package edu.cit.pacana.brewbatch.features.orders;
 
 public class OrderRequest {
     private String supplier;
+    private String supplierEmail;
     private String item;
     private Integer quantity;
     private Double totalCost;
@@ -9,6 +10,8 @@ public class OrderRequest {
 
     public String getSupplier() { return supplier; }
     public void setSupplier(String supplier) { this.supplier = supplier; }
+    public String getSupplierEmail() { return supplierEmail; }
+    public void setSupplierEmail(String supplierEmail) { this.supplierEmail = supplierEmail; }
     public String getItem() { return item; }
     public void setItem(String item) { this.item = item; }
     public Integer getQuantity() { return quantity; }
