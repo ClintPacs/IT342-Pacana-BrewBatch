@@ -1,9 +1,17 @@
 import api from '../../shared/services/api';
 
 const AuthService = {
-  register: async (username, email, password, fullName, role = 'BARISTA') => {
+  register: async (formData) => {
     const response = await api.post('/api/auth/register', {
-      username, email, password, fullName, role,
+      username: formData.username,
+      fullName: formData.fullName,
+      email: formData.email,
+      password: formData.password,
+      role: formData.role || 'BARISTA',
+      companyName: formData.companyName,
+      contactName: formData.contactName,
+      phone: formData.phone,
+      address: formData.address,
     });
     return response.data;
   },

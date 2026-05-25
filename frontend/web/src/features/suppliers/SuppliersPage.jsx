@@ -1,220 +1,192 @@
 import React, { useState, useEffect } from 'react';
-import Sidebar from '../../shared/components/Sidebar';
-import { useAuth } from '../auth/AuthContext';
-import SuppliersService from './suppliersService';
+import { Mail, Phone, MapPin, Send } from 'lucide-react';
+import toast from 'react-hot-toast';
+import suppliersService from './suppliersService';
+import api from '../../shared/services/api';
+import PageHeader from '../../shared/components/ui/PageHeader';
+import Card from '../../shared/components/ui/Card';
+import Button from '../../shared/components/ui/Button';
+import Modal from '../../shared/components/ui/Modal';
+import Input from '../../shared/components/ui/Input';
+import EmptyState from '../../shared/components/ui/EmptyState';
+import Skeleton from '../../shared/components/ui/Skeleton';
 
-export default function SuppliersPage () {
-  const { user } = useAuth();
+export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editSupplier, setEditSupplier] = useState(null);
-  const [form, setForm] = useState({ name: '', contactName: '', email: '', phone: '', address: '' });
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [messageOpen, setMessageOpen] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState(null);
+  const [msgForm, setMsgForm] = useState({ subject: '', message: '' });
+  const [sending, setSending] = useState(false);
 
-  useEffect(() => {
-    loadSuppliers();
-  }, []);
-
-  async function loadSuppliers() {
+  const load = async () => {
     setLoading(true);
-    try {
-      const data = await SuppliersService.getAll();
-      setSuppliers(data);
-    } catch (e) {
-      setError('Failed to load suppliers.');
-    } finally {
-      setLoading(false);
-    }
-  }
+    try { const res = await suppliersService.getAll(); setSuppliers(Array.isArray(res) ? res : []); }
+    catch { toast.error('Failed to load suppliers'); }
+    finally { setLoading(false); }
+  };
 
-  function openAdd() {
-    setEditSupplier(null);
-    setForm({ name: '', contactName: '', email: '', phone: '', address: '' });
-    setError('');
-    setSuccess('');
-    setShowForm(true);
-  }
+  useEffect(() => { load(); }, []);
 
-  function openEdit(supplier) {
-    setEditSupplier(supplier);
-    setForm({
-      name: supplier.name || '',
-      contactName: supplier.contactName || '',
-      email: supplier.email || '',
-      phone: supplier.phone || '',
-      address: supplier.address || '',
-    });
-    setError('');
-    setSuccess('');
-    setShowForm(true);
-  }
+  const openMessage = (supplier) => {
+    setSelectedSupplier(supplier);
+    setMsgForm({ subject: '', message: '' });
+    setMessageOpen(true);
+  };
 
-  async function handleSubmit(e) {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
-    try {
-      if (editSupplier) {
-        await SuppliersService.update(editSupplier.id, form);
-        setSuccess('Supplier updated successfully!');
-      } else {
-        await SuppliersService.create(form);
-        setSuccess('Supplier added successfully!');
-      }
-      setShowForm(false);
-      loadSuppliers();
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to save supplier.');
+    if (!selectedSupplier?.email) {
+      toast.error('Supplier has no email');
+      return;
     }
-  }
-
-  async function handleArchive(id) {
-    if (!window.confirm('Archive this supplier?')) return;
+    setSending(true);
     try {
-      await SuppliersService.archive(id);
-      setSuccess('Supplier archived.');
-      loadSuppliers();
-    } catch (e) {
-      setError('Failed to archive supplier.');
+      await api.post('/api/notifications/send', {
+        email: selectedSupplier.email,
+        subject: msgForm.subject,
+        message: msgForm.message,
+      });
+      toast.success(`Message sent to ${selectedSupplier.name}!`);
+      setMessageOpen(false);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to send message');
+    } finally {
+      setSending(false);
     }
-  }
+  };
 
   return (
-    <div style={s.layout}>
-      <nav style={s.topnav}>
-        <div style={s.navLogo}>? BrewBatch</div>
-        <span style={s.navUser}>Welcome, <strong>{user?.username}</strong></span>
-      </nav>
-      <div style={s.body}>
-        <Sidebar />
-        <main style={s.main}>
-          <div style={s.titleRow}>
-            <h2 style={s.title}>Supplier Directory</h2>
-            <button style={s.addBtn} onClick={openAdd}>+ Add Supplier</button>
-          </div>
+    <div>
+      <PageHeader title="Suppliers" breadcrumb="BrewBatch / Suppliers" />
 
-          {success && <div style={s.successBox}>? {success}</div>}
-          {error && <div style={s.errorBox}>?? {error}</div>}
-
-          {showForm && (
-            <div style={s.formCard}>
-              <h3 style={s.formTitle}>{editSupplier ? 'Edit Supplier' : 'New Supplier'}</h3>
-              <form onSubmit={handleSubmit} style={s.formGrid}>
-                <div style={s.formGroup}>
-                  <label style={s.label}>Supplier Name</label>
-                  <input
-                    style={s.input}
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    required
-                  />
-                </div>
-                <div style={s.formGroup}>
-                  <label style={s.label}>Contact Name</label>
-                  <input
-                    style={s.input}
-                    value={form.contactName}
-                    onChange={(e) => setForm({ ...form, contactName: e.target.value })}
-                  />
-                </div>
-                <div style={s.formGroup}>
-                  <label style={s.label}>Email</label>
-                  <input
-                    style={s.input}
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  />
-                </div>
-                <div style={s.formGroup}>
-                  <label style={s.label}>Phone</label>
-                  <input
-                    style={s.input}
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  />
-                </div>
-                <div style={s.formGroup}>
-                  <label style={s.label}>Address</label>
-                  <input
-                    style={s.input}
-                    value={form.address}
-                    onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  />
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                  <button type="submit" style={s.saveBtn}>{editSupplier ? 'Update' : 'Save'}</button>
-                  <button type="button" style={s.cancelBtn} onClick={() => setShowForm(false)}>Cancel</button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          <div style={s.tableWrap}>
-            <table style={s.table}>
-              <thead>
-                <tr style={s.thead}>
-                  {['Supplier', 'Contact', 'Email', 'Phone', 'Address', 'Actions'].map((title) => (
-                    <th key={title} style={s.th}>{title}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={6} style={s.empty}>Loading suppliers...</td></tr>
-                ) : suppliers.length === 0 ? (
-                  <tr><td colSpan={6} style={s.empty}>No suppliers found.</td></tr>
-                ) : suppliers.map((supplier) => (
-                  <tr key={supplier.id} style={s.tr}>
-                    <td style={s.td}>{supplier.name}</td>
-                    <td style={s.td}>{supplier.contactName || '�'}</td>
-                    <td style={s.td}>{supplier.email || '�'}</td>
-                    <td style={s.td}>{supplier.phone || '�'}</td>
-                    <td style={s.td}>{supplier.address || '�'}</td>
-                    <td style={s.td}>
-                      <button style={s.editBtn} onClick={() => openEdit(supplier)}>Edit</button>
-                      <button style={s.archiveBtn} onClick={() => handleArchive(supplier.id)}>Archive</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </main>
+      {/* Info banner */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '12px',
+        padding: '12px 16px', borderRadius: '8px', marginBottom: '24px',
+        background: '#EFF6FF', border: '1px solid rgba(41,128,185,0.2)',
+        fontSize: '13px', color: '#2E1503', fontFamily: "'Inter', sans-serif",
+      }}>
+        <span style={{ fontSize: '16px' }}>ℹ️</span>
+        Suppliers appear here automatically when they register on the platform. Use the <strong style={{ margin: '0 4px' }}>Message</strong> button to contact them.
       </div>
+
+      {loading ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+          {[1,2,3].map(i => <Skeleton key={i} height="200px" borderRadius="12px" />)}
+        </div>
+      ) : suppliers.length === 0 ? (
+        <EmptyState
+          title="No suppliers registered yet"
+          subtitle="Suppliers will appear here once they create an account on BrewBatch."
+        />
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+          {suppliers.map(s => (
+            <Card key={s.id} hover>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '16px' }}>
+                <div style={{
+                  width: '44px', height: '44px', borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #6B3A1F 0%, #C4874A 100%)',
+                  color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '18px', fontWeight: 600, flexShrink: 0,
+                }}>
+                  {s.name?.[0]?.toUpperCase() || 'S'}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '16px', fontWeight: 600, color: '#2E1503', fontFamily: "'Inter', sans-serif" }}>{s.name}</div>
+                  <div style={{ fontSize: '13px', color: '#8B5E3C', marginTop: '2px', fontFamily: "'Inter', sans-serif" }}>{s.contactName}</div>
+                </div>
+                <div style={{
+                  padding: '3px 10px', borderRadius: '20px',
+                  background: '#F0FDF4', color: '#27AE60',
+                  fontSize: '11px', fontWeight: 600, fontFamily: "'Inter', sans-serif",
+                }}>Active</div>
+              </div>
+
+              {/* Details */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                {s.email && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#2E1503', fontFamily: "'Inter', sans-serif" }}>
+                    <Mail size={14} color="#8B5E3C" />{s.email}
+                  </div>
+                )}
+                {s.phone && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#2E1503', fontFamily: "'Inter', sans-serif" }}>
+                    <Phone size={14} color="#8B5E3C" />{s.phone}
+                  </div>
+                )}
+                {s.address && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#2E1503', fontFamily: "'Inter', sans-serif" }}>
+                    <MapPin size={14} color="#8B5E3C" />{s.address}
+                  </div>
+                )}
+              </div>
+
+              {/* Action */}
+              <div style={{ borderTop: '1px solid #F2E4D0', paddingTop: '12px' }}>
+                <Button variant="secondary" size="sm" onClick={() => openMessage(s)} style={{ width: '100%' }}>
+                  <Send size={14} /> Send Message
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Message Modal */}
+      <Modal isOpen={messageOpen} onClose={() => setMessageOpen(false)} title={`Message ${selectedSupplier?.name || 'Supplier'}`}>
+        <form onSubmit={handleSendMessage} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Recipient info */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '12px',
+            padding: '12px 16px', borderRadius: '8px', background: '#FAF4EC',
+          }}>
+            <div style={{
+              width: '36px', height: '36px', borderRadius: '50%',
+              background: '#6B3A1F', color: '#FFF',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '14px', fontWeight: 600,
+            }}>
+              {selectedSupplier?.name?.[0]?.toUpperCase() || 'S'}
+            </div>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 500, color: '#2E1503' }}>{selectedSupplier?.name}</div>
+              <div style={{ fontSize: '12px', color: '#8B5E3C' }}>{selectedSupplier?.email}</div>
+            </div>
+          </div>
+
+          <Input label="Subject *" value={msgForm.subject} onChange={(e) => setMsgForm({ ...msgForm, subject: e.target.value })} required />
+
+          <div>
+            <div style={{ fontSize: '12px', color: '#8B5E3C', marginBottom: '6px', fontWeight: 500 }}>Message *</div>
+            <textarea
+              value={msgForm.message}
+              onChange={(e) => setMsgForm({ ...msgForm, message: e.target.value })}
+              required
+              rows={5}
+              style={{
+                width: '100%', padding: '12px 14px', borderRadius: '6px',
+                border: '1.5px solid #F2E4D0', background: '#FAF4EC',
+                fontSize: '14px', fontFamily: "'Inter', sans-serif", color: '#2E1503',
+                resize: 'vertical', outline: 'none',
+                boxSizing: 'border-box',
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#6B3A1F'}
+              onBlur={(e) => e.target.style.borderColor = '#F2E4D0'}
+              placeholder="Type your message to the supplier..."
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '8px' }}>
+            <Button variant="secondary" onClick={() => setMessageOpen(false)}>Cancel</Button>
+            <Button type="submit" variant="primary" loading={sending}>
+              <Send size={14} /> Send Message
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
-
-const s = {
-  layout: { minHeight: '100vh', background: '#FAF4EC', display: 'flex', flexDirection: 'column' },
-  topnav: { background: '#4A2008', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  navLogo: { fontFamily: 'serif', fontSize: 16, fontWeight: 700, color: '#fff' },
-  navUser: { color: '#D9B896', fontSize: 13 },
-  body: { display: 'flex', flex: 1 },
-  main: { flex: 1, padding: 24 },
-  titleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  title: { fontFamily: 'serif', fontSize: 22, color: '#2E1503' },
-  addBtn: { padding: '8px 18px', background: '#6B3A1F', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 },
-  successBox: { background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#27AE60', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13 },
-  errorBox: { background: '#FEF2F2', border: '1px solid #FECACA', color: '#C0392B', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13 },
-  formCard: { background: '#fff', borderRadius: 12, padding: 20, marginBottom: 20, boxShadow: '0 2px 8px rgba(106,58,31,.08)' },
-  formTitle: { fontSize: 15, color: '#2E1503', marginBottom: 14, fontFamily: 'serif' },
-  formGrid: { display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12, marginBottom: 20 },
-  formGroup: { display: 'flex', flexDirection: 'column', gap: 5 },
-  label: { fontSize: 10, fontWeight: 600, color: '#6B3A1F', textTransform: 'uppercase', letterSpacing: 0.7 },
-  input: { padding: '8px 10px', border: '1.5px solid #F2E4D0', borderRadius: 7, fontSize: 13, outline: 'none', background: '#FAF4EC' },
-  saveBtn: { padding: '9px 20px', background: '#6B3A1F', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 },
-  cancelBtn: { padding: '9px 16px', background: '#fff', color: '#6B3A1F', border: '1.5px solid #6B3A1F', borderRadius: 8, cursor: 'pointer', fontSize: 13 },
-  tableWrap: { background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 2px 8px rgba(106,58,31,.07)' },
-  table: { width: '100%', borderCollapse: 'collapse' },
-  thead: { background: '#F2E4D0' },
-  th: { padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#6B3A1F', textTransform: 'uppercase', letterSpacing: 0.5 },
-  tr: { borderBottom: '1px solid #F5F0E8' },
-  td: { padding: '10px 14px', fontSize: 13, color: '#2E1503' },
-  empty: { padding: '32px', textAlign: 'center', color: '#8B5E3C', fontSize: 13 },
-  editBtn: { padding: '4px 10px', background: '#6B3A1F', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 11, marginRight: 6 },
-  archiveBtn: { padding: '4px 10px', background: '#fff', color: '#C0392B', border: '1px solid #C0392B', borderRadius: 5, cursor: 'pointer', fontSize: 11 },
-};

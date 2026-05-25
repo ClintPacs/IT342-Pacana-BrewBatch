@@ -18,7 +18,7 @@ public class DataInitializer {
 
     @PostConstruct
     public void init() {
-        boolean adminExists = userRepository.existsByUsernameAndRole("admin", User.Role.ADMIN);
+        boolean adminExists = userRepository.existsByUsername("admin");
 
         if (!adminExists) {
             User admin = new User();

@@ -60,9 +60,9 @@ public class WebSecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
                 "http://localhost:3000",
+                "http://localhost:3001",
                 "http://10.0.2.2:8080"
         ));
-        // Make sure DELETE is in this list
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(List.of("Authorization"));
@@ -72,8 +72,6 @@ public class WebSecurityConfig {
         source.registerCorsConfiguration("/**", config);
         return source;
     }
-
-
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http)
@@ -87,6 +85,13 @@ public class WebSecurityConfig {
                         SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
+                        // Supplier-scoped endpoints — match exact path AND sub-paths
+                        .requestMatchers("/api/orders/supplier", "/api/orders/supplier/**").hasAuthority("SUPPLIER")
+                        .requestMatchers("/api/suppliers/me").authenticated()
+                        .requestMatchers("/api/invoices/**").authenticated()
+                        .requestMatchers("/api/notifications/**").authenticated()
+                        // Admin endpoints
+                        .requestMatchers("/api/users/**").hasAuthority("ADMIN")
                         .anyRequest().authenticated()
                 );
 
