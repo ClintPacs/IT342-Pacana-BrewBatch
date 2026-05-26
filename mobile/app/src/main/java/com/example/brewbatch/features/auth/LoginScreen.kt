@@ -12,30 +12,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.brewbatch.shared.network.LoginRequest
 import com.example.brewbatch.shared.network.RetrofitClient
 import com.example.brewbatch.shared.network.SessionManager
+import com.example.brewbatch.shared.ui.*
 import kotlinx.coroutines.launch
 
-// ── Colors ────────────────────────────────────────────────────────────────────
-val Espresso = Color(0xFF1A0800)
-val Dark = Color(0xFF2E1503)
-val Roast = Color(0xFF4A2008)
-val Coffee = Color(0xFF6B3A1F)
-val Mocha = Color(0xFF8B5E3C)
-val Caramel = Color(0xFFC4874A)
-val Latte = Color(0xFFD9B896)
-val Cream = Color(0xFFF2E4D0)
-val Milk = Color(0xFFFAF4EC)
-val ErrorRed = Color(0xFFC0392B)
-val ErrorBg = Color(0xFFFEF2F2)
-val SuccessGreen = Color(0xFF27AE60)
-val SuccessBg = Color(0xFFF0FDF4)
+// ── Color aliases for backward compatibility with any files importing from this package ──
+val Espresso     = com.example.brewbatch.shared.ui.Espresso
+val Dark         = com.example.brewbatch.shared.ui.Dark
+val Roast        = com.example.brewbatch.shared.ui.Roast
+val Coffee       = com.example.brewbatch.shared.ui.Coffee
+val Mocha        = com.example.brewbatch.shared.ui.Mocha
+val Caramel      = com.example.brewbatch.shared.ui.Caramel
+val Latte        = com.example.brewbatch.shared.ui.Latte
+val Cream        = com.example.brewbatch.shared.ui.Cream
+val Milk         = com.example.brewbatch.shared.ui.Milk
+val ErrorRed     = com.example.brewbatch.shared.ui.ErrorRed
+val ErrorBg      = com.example.brewbatch.shared.ui.ErrorBg
+val SuccessGreen = com.example.brewbatch.shared.ui.SuccessGreen
+val SuccessBg    = com.example.brewbatch.shared.ui.SuccessBg
 
 @Composable
 fun LoginScreen(
@@ -44,16 +43,16 @@ fun LoginScreen(
     onGoRegister: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var username     by remember { mutableStateOf("") }
+    var password     by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
-    var errorMsg by remember { mutableStateOf("") }
-    var loading by remember { mutableStateOf(false) }
+    var errorMsg     by remember { mutableStateOf("") }
+    var loading      by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Milk),
+            .background(com.example.brewbatch.shared.ui.Milk),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -64,41 +63,39 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Logo
-            Text("☕", fontSize = 44.sp)
+            Text("☕", fontSize = 52.sp)
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 "BrewBatch",
-                fontSize = 26.sp,
+                fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
-                color = Dark
+                color = com.example.brewbatch.shared.ui.Dark
             )
             Text(
                 "Sign in to your account",
                 fontSize = 13.sp,
-                color = Mocha
+                color = com.example.brewbatch.shared.ui.Mocha
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
             // Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(6.dp)
+                elevation = CardDefaults.cardElevation(8.dp)
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
+                Column(modifier = Modifier.padding(24.dp)) {
 
                     // Error box
                     if (errorMsg.isNotEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(ErrorBg, RoundedCornerShape(7.dp))
-                                .padding(10.dp)
-                        ) {
-                            Text("⚠ $errorMsg", color = ErrorRed, fontSize = 12.sp)
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
+                                .background(com.example.brewbatch.shared.ui.ErrorBg, RoundedCornerShape(8.dp))
+                                .padding(12.dp)
+                        ) { Text("⚠ $errorMsg", color = com.example.brewbatch.shared.ui.ErrorRed, fontSize = 12.sp) }
+                        Spacer(modifier = Modifier.height(14.dp))
                     }
 
                     // Username
@@ -109,7 +106,7 @@ fun LoginScreen(
                         placeholder = "barista01",
                         isError = errorMsg.isNotEmpty()
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // Password
                     BrewLabel("PASSWORD")
@@ -122,150 +119,53 @@ fun LoginScreen(
                         showPassword = showPassword,
                         onTogglePassword = { showPassword = !showPassword }
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
-                    // Loading
-                    if (loading) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Text("Signing in...", color = Latte, fontSize = 12.sp)
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-
-                    // Button
-                    Button(
+                    BrewButton(
+                        text = if (loading) "Signing in…" else "Sign In",
                         onClick = {
                             if (username.isEmpty() || password.isEmpty()) {
-                                errorMsg = "Please fill in all fields"
-                                return@Button
+                                errorMsg = "Please fill in all fields"; return@BrewButton
                             }
                             errorMsg = ""
                             loading = true
                             scope.launch {
                                 try {
-                                    val response = RetrofitClient.api.login(
-                                        LoginRequest(username, password)
-                                    )
+                                    val response = RetrofitClient.api.login(LoginRequest(username, password))
                                     if (response.isSuccessful) {
-                                        val body = response.body()
-                                        // ── Fix: token is nested inside body.data ──
-                                        val token = body?.data?.token
-                                        val user = body?.data?.user
+                                        val token = response.body()?.data?.token
+                                        val user  = response.body()?.data?.user
                                         if (token != null) {
                                             sessionManager.saveToken(token)
-                                            sessionManager.saveUsername(
-                                                user?.username ?: username
-                                            )
+                                            sessionManager.saveUsername(user?.username ?: username)
                                             onLoginSuccess()
-                                        } else {
-                                            errorMsg = "Login failed — no token received"
-                                        }
-                                    } else {
-                                        errorMsg = "Invalid username or password"
-                                    }
-                                } catch (e: Exception) {
-                                    errorMsg = "Cannot connect to server"
-                                } finally {
-                                    loading = false
-                                }
+                                        } else errorMsg = "Login failed — no token received"
+                                    } else errorMsg = "Invalid username or password"
+                                } catch (_: Exception) { errorMsg = "Cannot connect to server" }
+                                finally { loading = false }
                             }
                         },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Coffee),
-                        enabled = !loading
-                    ) {
-                        Text(
-                            if (loading) "Signing in..." else "Sign In",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                    }
+                        loading = loading
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             Row {
-                Text("Don't have an account? ", fontSize = 12.sp, color = Coffee)
+                Text(
+                    "Don't have an account? ",
+                    fontSize = 13.sp,
+                    color = com.example.brewbatch.shared.ui.Coffee
+                )
                 Text(
                     "Register here",
-                    fontSize = 12.sp,
-                    color = Coffee,
+                    fontSize = 13.sp,
+                    color = com.example.brewbatch.shared.ui.Coffee,
                     textDecoration = TextDecoration.Underline,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.clickable { onGoRegister() }
                 )
             }
         }
     }
-}
-
-@Composable
-fun BrewLabel(text: String) {
-    Text(
-        text,
-        fontSize = 10.sp,
-        fontWeight = FontWeight.Bold,
-        color = Coffee,
-        letterSpacing = 0.08.sp,
-        modifier = Modifier.padding(bottom = 4.dp)
-    )
-}
-
-@Composable
-fun BrewInput(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    isError: Boolean = false,
-    isSuccess: Boolean = false,
-    isPassword: Boolean = false,
-    showPassword: Boolean = false,
-    onTogglePassword: (() -> Unit)? = null
-) {
-    val borderColor = when {
-        isError -> ErrorRed
-        isSuccess -> SuccessGreen
-        else -> Cream
-    }
-    val bgColor = when {
-        isError -> ErrorBg
-        isSuccess -> SuccessBg
-        else -> Milk
-    }
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        placeholder = { Text(placeholder, color = Latte, fontSize = 13.sp) },
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(50.dp),
-        singleLine = true,
-        visualTransformation = if (isPassword && !showPassword)
-            PasswordVisualTransformation() else VisualTransformation.None,
-        trailingIcon = if (isPassword && onTogglePassword != null) {
-            {
-                Text(
-                    if (showPassword) "🙈" else "👁",
-                    modifier = Modifier
-                        .clickable { onTogglePassword() }
-                        .padding(end = 8.dp),
-                    fontSize = 14.sp
-                )
-            }
-        } else null,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Coffee,
-            unfocusedBorderColor = borderColor,
-            focusedContainerColor = Color.White,
-            unfocusedContainerColor = bgColor,
-            focusedTextColor = Dark,
-            unfocusedTextColor = Dark
-        ),
-        shape = RoundedCornerShape(8.dp)
-    )
 }

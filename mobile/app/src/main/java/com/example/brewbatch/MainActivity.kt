@@ -7,7 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
 import com.example.brewbatch.features.auth.LoginScreen
 import com.example.brewbatch.features.auth.RegisterScreen
-import com.example.brewbatch.features.dashboard.DashboardScreen
+import com.example.brewbatch.features.main.MainScreen
 import com.example.brewbatch.shared.network.SessionManager
 
 class MainActivity : ComponentActivity() {
@@ -19,21 +19,21 @@ class MainActivity : ComponentActivity() {
         setContent {
             var screen by remember {
                 mutableStateOf(
-                    if (session.isLoggedIn()) "dashboard" else "login"
+                    if (session.isLoggedIn()) "main" else "login"
                 )
             }
 
             when (screen) {
                 "login" -> LoginScreen(
                     sessionManager = session,
-                    onLoginSuccess = { screen = "dashboard" },
+                    onLoginSuccess = { screen = "main" },
                     onGoRegister = { screen = "register" }
                 )
                 "register" -> RegisterScreen(
                     onRegisterSuccess = { screen = "login" },
                     onGoLogin = { screen = "login" }
                 )
-                "dashboard" -> DashboardScreen(
+                "main" -> MainScreen(
                     sessionManager = session,
                     onLogout = { screen = "login" }
                 )

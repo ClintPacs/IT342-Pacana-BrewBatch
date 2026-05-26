@@ -13,15 +13,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.brewbatch.features.auth.Coffee
-import com.example.brewbatch.features.auth.Cream
-import com.example.brewbatch.features.auth.Dark
-import com.example.brewbatch.features.auth.Milk
-import com.example.brewbatch.features.auth.Mocha
-import com.example.brewbatch.features.auth.Roast
-import com.example.brewbatch.features.auth.SuccessGreen
-import com.example.brewbatch.shared.network.RetrofitClient
-import com.example.brewbatch.shared.network.SessionManager
+import com.example.brewbatch.shared.network.*
+import com.example.brewbatch.shared.ui.*
 import com.google.gson.Gson
 import kotlinx.coroutines.launch
 
@@ -31,194 +24,317 @@ fun DashboardScreen(
     onLogout: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    var username by remember { mutableStateOf(sessionManager.getUsername() ?: "user") }
-    var fullName by remember { mutableStateOf("—") }
-    var email by remember { mutableStateOf("—") }
-    var role by remember { mutableStateOf("—") }
-    var userId by remember { mutableStateOf("—") }
-    var loading by remember { mutableStateOf(true) }
+    var username   by remember { mutableStateOf(sessionManager.getUsername() ?: "user") }
+    var fullName   by remember { mutableStateOf("—") }
+    var email      by remember { mutableStateOf("—") }
+    var role       by remember { mutableStateOf("—") }
+    var profileLoading by remember { mutableStateOf(true) }
 
-    fun loadProfile() {
+    // Stats
+    var inventoryCount  by remember { mutableStateOf("…") }
+    var alertCount      by remember { mutableStateOf("…") }
+    var orderCount      by remember { mutableStateOf("…") }
+    var supplierCount   by remember { mutableStateOf("…") }
+
+    // Recent orders + alerts
+    var recentOrders    by remember { mutableStateOf<List<Order>>(emptyList()) }
+    var lowStockAlerts  by remember { mutableStateOf<List<InventoryItem>>(emptyList()) }
+    var statsLoading    by remember { mutableStateOf(true) }
+
+    fun greet(): String {
+        val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        return when {
+            h < 12 -> "Good morning"
+            h < 18 -> "Good afternoon"
+            else   -> "Good evening"
+        }
+    }
+
+    fun loadAll() {
         val token = sessionManager.getToken() ?: return
+        val bearer = "Bearer $token"
+        profileLoading = true
+        statsLoading   = true
         scope.launch {
+            // Profile
             try {
-                val response = RetrofitClient.api.getMe("Bearer $token")
-                if (response.isSuccessful) {
-                    val json = Gson().toJsonTree(response.body()).asJsonObject
+                val resp = RetrofitClient.api.getMe(bearer)
+                if (resp.isSuccessful) {
+                    val json = Gson().toJsonTree(resp.body()).asJsonObject
                     val data = if (json.has("data") && !json.get("data").isJsonNull)
                         json.getAsJsonObject("data") else json
                     username = data.get("username")?.asString ?: username
                     fullName = data.get("fullName")?.asString ?: "—"
-                    email = data.get("email")?.asString ?: "—"
-                    role = data.get("role")?.asString ?: "—"
-                    userId = "#${data.get("id")?.asLong ?: 0}"
-                } else {
-                    onLogout()
+                    email    = data.get("email")?.asString ?: "—"
+                    role     = data.get("role")?.asString ?: "—"
                 }
-            } catch (e: Exception) {
-                // keep showing cached username
-            } finally {
-                loading = false
-            }
+            } catch (_: Exception) {}
+            profileLoading = false
+        }
+        scope.launch {
+            // Inventory count
+            try {
+                val resp = RetrofitClient.api.getInventory(bearer)
+                inventoryCount = resp.body()?.data?.size?.toString() ?: "0"
+            } catch (_: Exception) { inventoryCount = "—" }
+        }
+        scope.launch {
+            // Low-stock alerts
+            try {
+                val resp = RetrofitClient.api.getInventoryAlerts(bearer)
+                val list = resp.body()?.data ?: emptyList()
+                lowStockAlerts = list
+                alertCount = list.size.toString()
+            } catch (_: Exception) { alertCount = "—" }
+        }
+        scope.launch {
+            // Orders
+            try {
+                val resp = RetrofitClient.api.getOrders(bearer)
+                val list = resp.body()?.data ?: emptyList()
+                recentOrders = list.take(5)
+                orderCount   = list.count { it.status == "PENDING" }.toString()
+            } catch (_: Exception) { orderCount = "—" }
+        }
+        scope.launch {
+            // Suppliers
+            try {
+                val resp = RetrofitClient.api.getSuppliers(bearer)
+                supplierCount = resp.body()?.data?.size?.toString() ?: "0"
+            } catch (_: Exception) { supplierCount = "—" }
+            statsLoading = false
         }
     }
 
-    LaunchedEffect(Unit) { loadProfile() }
+    LaunchedEffect(Unit) { loadAll() }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Milk)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
     ) {
-        // Top Nav
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Roast)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "☕ BrewBatch",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                modifier = Modifier.weight(1f)
+        // Greeting
+        if (profileLoading) {
+            Spacer(modifier = Modifier.height(4.dp))
+            LinearProgressIndicator(
+                color = Coffee,
+                trackColor = Cream,
+                modifier = Modifier.fillMaxWidth().height(2.dp)
             )
-            TextButton(
-                onClick = { loading = true; loadProfile() },
-                colors = ButtonDefaults.textButtonColors(contentColor = Color.White)
-            ) { Text("↺", fontSize = 14.sp) }
-            Spacer(modifier = Modifier.width(6.dp))
-            Button(
-                onClick = {
-                    sessionManager.clearToken()
-                    onLogout()
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB91C1C)),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                modifier = Modifier.height(34.dp)
-            ) { Text("Logout", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            Spacer(modifier = Modifier.height(8.dp))
+        } else {
+            Column(modifier = Modifier.padding(bottom = 16.dp)) {
+                Text(
+                    "${greet()}, ${fullName.ifBlank { username }} 👋",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Dark
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    java.text.SimpleDateFormat(
+                        "EEEE, MMMM d, yyyy",
+                        java.util.Locale.getDefault()
+                    ).format(java.util.Date()),
+                    fontSize = 12.sp,
+                    color = Mocha
+                )
+            }
         }
 
-        // Content
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+        // ── Stat cards 2×2 ───────────────────────────────────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Welcome
-            Text(
-                "Welcome, $username ☕",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = Dark,
-                modifier = Modifier.padding(bottom = 14.dp)
-            )
+            BrewStatCard("Total Items",    inventoryCount, "📦", modifier = Modifier.weight(1f))
+            BrewStatCard("Low Stock",      alertCount,     "⚠️", modifier = Modifier.weight(1f),
+                valueColor = if (alertCount != "0" && alertCount != "…") ErrorRed else Dark)
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            BrewStatCard("Open Orders",    orderCount,    "🛒", modifier = Modifier.weight(1f))
+            BrewStatCard("Suppliers",      supplierCount, "🚚", modifier = Modifier.weight(1f))
+        }
 
-            // Stat Cards
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                StatCard("ROLE", role, Modifier.weight(1f))
-                StatCard("USER ID", userId, Modifier.weight(1f))
-                StatCard("STATUS", "● Active", Modifier.weight(1f), valueColor = SuccessGreen)
-            }
+        Spacer(modifier = Modifier.height(20.dp))
 
-            // Profile Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(4.dp)
-            ) {
+        // ── Recent orders ────────────────────────────────────────────────────
+        Text(
+            "Recent Orders",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = Dark,
+            modifier = Modifier.padding(bottom = 10.dp)
+        )
+        BrewCard {
+            if (statsLoading) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Coffee, strokeWidth = 2.dp)
+                }
+            } else if (recentOrders.isEmpty()) {
+                BrewEmpty("No orders yet", "Place your first order", "🛒")
+            } else {
                 Column {
-                    // Header
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Cream)
-                            .padding(10.dp)
-                    ) {
-                        Text(
-                            "👤  Profile",
-                            color = Coffee,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                    }
-
-                    if (loading) {
-                        Box(
+                    recentOrders.forEachIndexed { idx, order ->
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            CircularProgressIndicator(color = Coffee, strokeWidth = 2.dp)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "#${order.id} · ${order.item}",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Dark
+                                )
+                                Text(
+                                    order.supplier,
+                                    fontSize = 11.sp,
+                                    color = Mocha
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(horizontalAlignment = Alignment.End) {
+                                BrewBadge(order.status)
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    "₱${"%,.2f".format(order.totalCost)}",
+                                    fontSize = 11.sp,
+                                    color = Mocha,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
-                    } else {
-                        ProfileRow("USERNAME", username)
-                        Divider(color = Cream)
-                        ProfileRow("FULL NAME", fullName)
-                        Divider(color = Cream)
-                        ProfileRow("EMAIL", email)
-                        Divider(color = Cream)
-                        ProfileRow("ROLE", role, isBadge = true)
-                        Divider(color = Cream)
-                        ProfileRow("USER ID", userId, valueColor = Mocha)
+                        if (idx < recentOrders.lastIndex) BrewDivider()
                     }
                 }
             }
         }
-    }
-}
 
-@Composable
-fun StatCard(label: String, value: String, modifier: Modifier, valueColor: Color = Dark) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(3.dp)
-    ) {
-        Column(modifier = Modifier.padding(10.dp)) {
-            Text(label, fontSize = 8.sp, color = Mocha, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = valueColor)
-        }
-    }
-}
+        Spacer(modifier = Modifier.height(20.dp))
 
-@Composable
-fun ProfileRow(key: String, value: String, isBadge: Boolean = false, valueColor: Color = Dark) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+        // ── Low stock alerts ─────────────────────────────────────────────────
         Text(
-            key,
-            modifier = Modifier.width(90.dp),
-            fontSize = 10.sp,
-            color = Mocha,
-            fontWeight = FontWeight.Bold
+            "Low Stock Alerts",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = Dark,
+            modifier = Modifier.padding(bottom = 10.dp)
         )
-        if (isBadge) {
-            Box(
-                modifier = Modifier
-                    .background(Cream, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 8.dp, vertical = 3.dp)
-            ) {
-                Text(value, fontSize = 10.sp, color = Coffee, fontWeight = FontWeight.Bold)
+
+        if (!statsLoading && lowStockAlerts.isEmpty()) {
+            BrewCard {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("✅ All items are well-stocked", fontSize = 13.sp, color = Mocha)
+                }
             }
         } else {
-            Text(value, fontSize = 13.sp, color = valueColor, fontWeight = FontWeight.Medium)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (statsLoading) {
+                    repeat(3) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().height(60.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = Cream)
+                        ) {}
+                    }
+                } else {
+                    lowStockAlerts.take(5).forEach { item ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(3.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        item.name,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Dark
+                                    )
+                                    Text(
+                                        "Stock: ${item.currentStock} ${item.unit}  ·  Threshold: ${item.reorderThreshold}",
+                                        fontSize = 11.sp,
+                                        color = ErrorRed
+                                    )
+                                }
+                                BrewBadge("LOW STOCK")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Profile summary card ──────────────────────────────────────────────
+        Spacer(modifier = Modifier.height(20.dp))
+        Text(
+            "My Profile",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = Dark,
+            modifier = Modifier.padding(bottom = 10.dp)
+        )
+        BrewCard {
+            Column {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Cream)
+                        .padding(10.dp)
+                ) {
+                    Text("👤  Account Info", color = Coffee, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+                if (profileLoading) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) { CircularProgressIndicator(color = Coffee, strokeWidth = 2.dp) }
+                } else {
+                    DashProfileRow("USERNAME", username)
+                    BrewDivider()
+                    DashProfileRow("FULL NAME", fullName)
+                    BrewDivider()
+                    DashProfileRow("EMAIL", email)
+                    BrewDivider()
+                    DashProfileRow("ROLE", role, isBadge = true)
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+fun DashProfileRow(key: String, value: String, isBadge: Boolean = false) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(key, modifier = Modifier.width(100.dp), fontSize = 10.sp, color = Mocha, fontWeight = FontWeight.Bold)
+        if (isBadge) {
+            BrewBadge(value)
+        } else {
+            Text(value, fontSize = 13.sp, color = Dark, fontWeight = FontWeight.Medium)
         }
     }
 }
