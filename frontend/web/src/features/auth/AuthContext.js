@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AuthService from './authService';
 
-const AuthContext = createContext(null);
+export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -23,8 +23,8 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  const register = async (username, email, password, fullName) => {
-    return await AuthService.register(username, email, password, fullName);
+  const register = async (formData) => {
+    return await AuthService.register(formData);
   };
 
   const logout = () => {

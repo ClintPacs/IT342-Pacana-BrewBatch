@@ -1,282 +1,246 @@
-import React, { useState, useEffect } from 'react';
-import Sidebar from '../../shared/components/Sidebar';
-import { useAuth } from '../auth/AuthContext';
-import OrdersService from './ordersService';
-import SuppliersService from '../suppliers/suppliersService';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, X, Trash2, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
+import ordersService from './ordersService';
+import suppliersService from '../suppliers/suppliersService';
+import PageHeader from '../../shared/components/ui/PageHeader';
+import Table from '../../shared/components/ui/Table';
+import Badge from '../../shared/components/ui/Badge';
+import Button from '../../shared/components/ui/Button';
+import Modal from '../../shared/components/ui/Modal';
+import Input from '../../shared/components/ui/Input';
 
-const STATUSES = ['PENDING', 'APPROVED', 'RECEIVED', 'CANCELLED'];
+const statuses = ['ALL', 'PENDING', 'APPROVED', 'RECEIVED', 'CANCELLED'];
+const POLL_MS = 15000;
 
 export default function OrdersPage() {
-  const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editOrder, setEditOrder] = useState(null);
-  const [form, setForm] = useState({ supplier: '', item: '', quantity: '', totalCost: '', status: 'PENDING' });
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [activeTab, setActiveTab] = useState('ALL');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [step, setStep] = useState(1);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [form, setForm] = useState({ supplier: '', supplierEmail: '', item: '', quantity: '', totalCost: '' });
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    loadOrders();
-    loadSuppliers();
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const [oRes, sRes] = await Promise.all([
+        ordersService.getAll(),
+        suppliersService.getAll(),
+      ]);
+      setOrders(Array.isArray(oRes) ? oRes : []);
+      setSuppliers(Array.isArray(sRes) ? sRes : []);
+    } catch { if (!silent) toast.error('Failed to load orders'); }
+    finally { if (!silent) setLoading(false); }
   }, []);
 
-  async function loadOrders() {
-    setLoading(true);
-    try {
-      const data = await OrdersService.getAll();
-      setOrders(data);
-    } catch (e) {
-      setError('Failed to load orders.');
-    } finally {
-      setLoading(false);
-    }
-  }
+  // Initial load + polling every 15s
+  useEffect(() => {
+    load();
+    const interval = setInterval(() => load(true), POLL_MS);
+    return () => clearInterval(interval);
+  }, [load]);
 
-  async function loadSuppliers() {
-    try {
-      const data = await SuppliersService.getAll();
-      setSuppliers(data || []);
-    } catch (e) {
-      setError('Failed to load suppliers.');
-    }
-  }
+  const filtered = activeTab === 'ALL' ? orders : orders.filter(o => o.status === activeTab);
+  const counts = {};
+  statuses.forEach(s => { counts[s] = s === 'ALL' ? orders.length : orders.filter(o => o.status === s).length; });
 
-  function openAdd() {
-    setEditOrder(null);
-    setForm({ supplier: '', item: '', quantity: '', totalCost: '', status: 'PENDING' });
-    setError('');
-    setSuccess('');
-    loadSuppliers();
-    setShowForm(true);
-  }
-
-  function openEdit(order) {
-    setEditOrder(order);
-    setForm({
-      supplier: order.supplier || '',
-      item: order.item || '',
-      quantity: order.quantity?.toString() || '',
-      totalCost: order.totalCost?.toString() || '',
-      status: order.status || 'PENDING',
-    });
-    setError('');
-    setSuccess('');
-    loadSuppliers();
-    setShowForm(true);
-  }
-
-  const parseNumberValue = (value) => {
-    if (value === '' || value === null || value === undefined) return undefined;
-    return Number(value);
+  const openAdd = () => {
+    setForm({ supplier: '', supplierEmail: '', item: '', quantity: '', totalCost: '' });
+    setStep(1);
+    setModalOpen(true);
   };
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    const payload = {
-      supplier: form.supplier,
-      item: form.item,
-      quantity: parseNumberValue(form.quantity),
-      totalCost: parseNumberValue(form.totalCost),
-      status: form.status,
-    };
+  const selectSupplier = (s) => {
+    setForm(f => ({ ...f, supplier: s.name, supplierEmail: s.email }));
+  };
+
+  const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
+
+  const handleSubmit = async () => {
+    setSaving(true);
     try {
-      if (editOrder) {
-        await OrdersService.update(editOrder.id, payload);
-        setSuccess('Order updated successfully!');
+      await ordersService.create({
+        supplier: form.supplier,
+        supplierEmail: form.supplierEmail,
+        item: form.item,
+        quantity: parseInt(form.quantity),
+        totalCost: parseFloat(form.totalCost),
+      });
+      toast.success('Order placed!');
+      setModalOpen(false);
+      await load(true); // silent refresh
+    } catch { toast.error('Failed to place order'); }
+    finally { setSaving(false); }
+  };
+
+  const handleConfirm = async () => {
+    if (!confirmAction) return;
+    try {
+      if (confirmAction.type === 'cancel') {
+        await ordersService.cancel(confirmAction.id);
+        toast.success('Order cancelled');
       } else {
-        await OrdersService.create(payload);
-        setSuccess('Order created successfully!');
+        await ordersService.delete(confirmAction.id);
+        toast.success('Order deleted');
       }
-      setShowForm(false);
-      loadOrders();
-    } catch (e) {
-      setError(e.response?.data?.message || 'Failed to save order.');
-    }
-  }
+      setConfirmOpen(false);
+      await load(true);
+    } catch { toast.error('Action failed'); }
+  };
 
-  async function handleCancel(id) {
-    if (!window.confirm('Cancel this order?')) return;
-    try {
-      await OrdersService.cancel(id);
-      setSuccess('Order cancelled.');
-      loadOrders();
-    } catch (e) {
-      setError('Failed to cancel order.');
-    }
-  }
+  const formatDate = (iso) => {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
 
-  async function handleDelete() {
-    if (!editOrder) return;
-    if (!window.confirm('Delete this cancelled order? This cannot be undone.')) return;
-    try {
-      await OrdersService.deleteOrder(editOrder.id);
-      setSuccess('Order deleted.');
-      setShowForm(false);
-      loadOrders();
-    } catch (e) {
-      const msg = e.response?.data?.message || e.message || 'Failed to delete order.';
-      setError(`Delete error: ${msg}`);
-    }
-  }
+  const columns = [
+    { key: 'id', label: 'Order ID', render: (r) => <span style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 600 }}>#{r.id}</span> },
+    { key: 'supplier', label: 'Supplier' },
+    { key: 'item', label: 'Item' },
+    { key: 'quantity', label: 'Qty' },
+    { key: 'totalCost', label: 'Total', render: (r) => '₱' + (r.totalCost || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 }) },
+    { key: 'status', label: 'Status', render: (r) => <Badge status={r.status} /> },
+    { key: 'createdAt', label: 'Date', render: (r) => <span style={{ fontSize: '12px', color: '#8B5E3C' }}>{formatDate(r.createdAt)}</span> },
+    {
+      key: 'actions', label: '', sortable: false, render: (r) => (
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {r.status !== 'CANCELLED' && r.status !== 'RECEIVED' && (
+            <button onClick={() => { setConfirmAction({ type: 'cancel', id: r.id }); setConfirmOpen(true); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#F39C12', padding: '6px', borderRadius: '6px' }} title="Cancel">
+              <X size={14} />
+            </button>
+          )}
+          {(r.status === 'CANCELLED') && (
+            <button onClick={() => { setConfirmAction({ type: 'delete', id: r.id }); setConfirmOpen(true); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#C0392B', padding: '6px', borderRadius: '6px' }} title="Delete">
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+      )
+    },
+  ];
 
   return (
-    <div style={s.layout}>
-      <nav style={s.topnav}>
-        <div style={s.navLogo}>? BrewBatch</div>
-        <span style={s.navUser}>Welcome, <strong>{user?.username}</strong></span>
-      </nav>
-      <div style={s.body}>
-        <Sidebar />
-        <main style={s.main}>
-          <div style={s.titleRow}>
-            <h2 style={s.title}>Purchase Orders</h2>
-            <button style={s.addBtn} onClick={openAdd}>+ Add Order</button>
-          </div>
+    <div>
+      <PageHeader title="Orders" breadcrumb="BrewBatch / Orders">
+        <button onClick={() => load(true)} title="Refresh"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8B5E3C', padding: '8px', borderRadius: '8px', marginRight: '8px' }}>
+          <RefreshCw size={16} />
+        </button>
+        <Button variant="primary" size="md" onClick={openAdd}><Plus size={16} /> New Order</Button>
+      </PageHeader>
 
-          {success && <div style={s.successBox}>? {success}</div>}
-          {error && <div style={s.errorBox}>?? {error}</div>}
-
-          {showForm && (
-            <div style={s.formCard}>
-              <h3 style={s.formTitle}>{editOrder ? 'Edit Order' : 'New Order'}</h3>
-              <form onSubmit={handleSubmit} style={s.formGrid}>
-                <div style={s.formGroup}>
-                  <label style={s.label}>Supplier</label>
-                  <select
-                    style={s.input}
-                    value={form.supplier}
-                    onChange={(e) => setForm({ ...form, supplier: e.target.value })}
-                    required
-                  >
-                    <option value="" disabled>Select a supplier</option>
-                    {suppliers.map((supplier) => (
-                      <option key={supplier.id || supplier.name} value={supplier.name}>
-                        {supplier.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div style={s.formGroup}>
-                  <label style={s.label}>Item</label>
-                  <input
-                    style={s.input}
-                    value={form.item}
-                    onChange={(e) => setForm({ ...form, item: e.target.value })}
-                    required
-                  />
-                </div>
-                <div style={s.formGroup}>
-                  <label style={s.label}>Quantity</label>
-                  <input
-                    style={s.input}
-                    type="number"
-                    step="1"
-                    value={form.quantity}
-                    onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-                    required
-                  />
-                </div>
-                <div style={s.formGroup}>
-                  <label style={s.label}>Total Cost</label>
-                  <input
-                    style={s.input}
-                    type="number"
-                    step="0.01"
-                    value={form.totalCost}
-                    onChange={(e) => setForm({ ...form, totalCost: e.target.value })}
-                    required
-                  />
-                </div>
-                <div style={s.formGroup}>
-                  <label style={s.label}>Status</label>
-                  <select
-                    style={s.input}
-                    value={form.status}
-                    onChange={(e) => setForm({ ...form, status: e.target.value })}
-                  >
-                    {STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
-                  </select>
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                  <button type="submit" style={s.saveBtn}>{editOrder ? 'Update Order' : 'Place Order'}</button>
-                  <button type="button" style={s.cancelBtn} onClick={() => setShowForm(false)}>Cancel</button>
-                  {editOrder?.status === 'CANCELLED' && (
-                    <button type="button" style={s.deleteBtn} onClick={handleDelete}>Delete Order</button>
-                  )}
-                </div>
-              </form>
-            </div>
-          )}
-
-          <div style={s.tableWrap}>
-            <table style={s.table}>
-              <thead>
-                <tr style={s.thead}>
-                  {['Order', 'Supplier', 'Item', 'Quantity', 'Total', 'Status', 'Actions'].map((title) => (
-                    <th key={title} style={s.th}>{title}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={7} style={s.empty}>Loading orders...</td></tr>
-                ) : orders.length === 0 ? (
-                  <tr><td colSpan={7} style={s.empty}>No orders found.</td></tr>
-                ) : orders.map((order) => (
-                  <tr key={order.id} style={s.tr}>
-                    <td style={s.td}>#{order.id}</td>
-                    <td style={s.td}>{order.supplier}</td>
-                    <td style={s.td}>{order.item}</td>
-                    <td style={s.td}>{order.quantity}</td>
-                    <td style={s.td}>${order.totalCost?.toFixed ? order.totalCost.toFixed(2) : order.totalCost}</td>
-                    <td style={s.td}>{order.status}</td>
-                    <td style={s.td}>
-                      <button style={s.editBtn} onClick={() => openEdit(order)}>Edit</button>
-                      <button style={s.archiveBtn} onClick={() => handleCancel(order.id)}>Cancel</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </main>
+      {/* Status tabs */}
+      <div style={{ display: 'flex', borderBottom: '2px solid #F2E4D0', marginBottom: '20px' }}>
+        {statuses.map(s => (
+          <button key={s} onClick={() => setActiveTab(s)} style={{
+            padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: '13px', fontWeight: activeTab === s ? 600 : 400, fontFamily: "'Inter', sans-serif",
+            color: activeTab === s ? '#6B3A1F' : '#8B5E3C',
+            borderBottom: activeTab === s ? '2px solid #6B3A1F' : '2px solid transparent',
+            marginBottom: '-2px', display: 'flex', alignItems: 'center', gap: '6px',
+          }}>
+            {s === 'ALL' ? 'All' : s.charAt(0) + s.slice(1).toLowerCase()}
+            <span style={{ fontSize: '11px', fontWeight: 600, padding: '1px 6px', borderRadius: '24px',
+              background: activeTab === s ? '#6B3A1F' : '#F2E4D0', color: activeTab === s ? '#FFF' : '#8B5E3C' }}>
+              {counts[s]}
+            </span>
+          </button>
+        ))}
       </div>
+
+      <Table columns={columns} data={filtered} loading={loading} emptyTitle="No orders" emptySubtitle="Place a purchase order to get started." emptyAction="New Order" onEmptyAction={openAdd} />
+
+      {/* New Order Modal */}
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="New Order">
+        {/* Step indicator */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+          {[1, 2, 3].map(s => (
+            <div key={s} style={{ flex: 1, height: '4px', borderRadius: '2px', background: step >= s ? '#6B3A1F' : '#F2E4D0' }} />
+          ))}
+        </div>
+
+        {step === 1 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ fontSize: '13px', color: '#8B5E3C', marginBottom: '4px', fontFamily: "'Inter', sans-serif" }}>Select a supplier:</div>
+            {suppliers.length === 0 ? (
+              <div style={{ padding: '20px', textAlign: 'center', color: '#8B5E3C', fontSize: '13px', background: '#FAF4EC', borderRadius: '8px' }}>
+                No suppliers registered yet.
+              </div>
+            ) : (
+              suppliers.map(s => (
+                <button key={s.id} onClick={() => { selectSupplier(s); setStep(2); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    padding: '12px 16px', borderRadius: '8px', cursor: 'pointer',
+                    border: form.supplier === s.name ? '2px solid #6B3A1F' : '1.5px solid #F2E4D0',
+                    background: form.supplier === s.name ? '#FAF4EC' : '#FFFFFF',
+                    textAlign: 'left', width: '100%',
+                  }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#6B3A1F', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, flexShrink: 0 }}>
+                    {s.name?.[0]?.toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '14px', color: '#2E1503', fontFamily: "'Inter', sans-serif" }}>{s.name}</div>
+                    <div style={{ fontSize: '12px', color: '#8B5E3C' }}>{s.email}</div>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+
+        {step === 2 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ padding: '10px 14px', background: '#FAF4EC', borderRadius: '8px', fontSize: '13px', color: '#6B3A1F', fontWeight: 500 }}>
+              Supplier: {form.supplier}
+            </div>
+            <Input label="Item Name *" value={form.item} onChange={set('item')} required />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <Input label="Quantity *" type="number" value={form.quantity} onChange={set('quantity')} required />
+              <Input label="Total Cost (₱) *" type="number" value={form.totalCost} onChange={set('totalCost')} required />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Button variant="ghost" onClick={() => setStep(1)}>Back</Button>
+              <Button onClick={() => setStep(3)} disabled={!form.item || !form.quantity}>Next</Button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ background: '#FAF4EC', borderRadius: '8px', padding: '16px', fontSize: '13px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <span style={{ color: '#8B5E3C' }}>Supplier:</span><span style={{ fontWeight: 500 }}>{form.supplier}</span>
+                <span style={{ color: '#8B5E3C' }}>Item:</span><span style={{ fontWeight: 500 }}>{form.item}</span>
+                <span style={{ color: '#8B5E3C' }}>Qty:</span><span style={{ fontWeight: 500 }}>{form.quantity}</span>
+                <span style={{ color: '#8B5E3C' }}>Total:</span><span style={{ fontWeight: 500 }}>₱{Number(form.totalCost || 0).toLocaleString()}</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Button variant="ghost" onClick={() => setStep(2)}>Back</Button>
+              <Button loading={saving} onClick={handleSubmit}>Confirm Order</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Confirm Modal */}
+      <Modal isOpen={confirmOpen} onClose={() => setConfirmOpen(false)} title="Confirm" maxWidth="400px">
+        <p style={{ fontSize: '14px', color: '#2E1503', marginBottom: '20px' }}>
+          {confirmAction?.type === 'cancel' ? 'Cancel this order?' : 'Delete this order permanently?'}
+        </p>
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+          <Button variant="secondary" onClick={() => setConfirmOpen(false)}>No</Button>
+          <Button variant="danger" onClick={handleConfirm}>Yes</Button>
+        </div>
+      </Modal>
     </div>
   );
 }
-
-const s = {
-  layout: { minHeight: '100vh', background: '#FAF4EC', display: 'flex', flexDirection: 'column' },
-  topnav: { background: '#4A2008', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  navLogo: { fontFamily: 'serif', fontSize: 16, fontWeight: 700, color: '#fff' },
-  navUser: { color: '#D9B896', fontSize: 13 },
-  body: { display: 'flex', flex: 1 },
-  main: { flex: 1, padding: 24 },
-  titleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  title: { fontFamily: 'serif', fontSize: 22, color: '#2E1503' },
-  addBtn: { padding: '8px 18px', background: '#6B3A1F', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 },
-  successBox: { background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#27AE60', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13 },
-  errorBox: { background: '#FEF2F2', border: '1px solid #FECACA', color: '#C0392B', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13 },
-  formCard: { background: '#fff', borderRadius: 12, padding: 20, marginBottom: 20, boxShadow: '0 2px 8px rgba(106,58,31,.08)' },
-  formTitle: { fontSize: 15, color: '#2E1503', marginBottom: 14, fontFamily: 'serif' },
-  formGrid: { display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12, marginBottom: 20 },
-  formGroup: { display: 'flex', flexDirection: 'column', gap: 5 },
-  label: { fontSize: 10, fontWeight: 600, color: '#6B3A1F', textTransform: 'uppercase', letterSpacing: 0.7 },
-  input: { padding: '8px 10px', border: '1.5px solid #F2E4D0', borderRadius: 7, fontSize: 13, outline: 'none', background: '#FAF4EC' },
-  saveBtn: { padding: '9px 20px', background: '#6B3A1F', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 },
-  cancelBtn: { padding: '9px 16px', background: '#fff', color: '#6B3A1F', border: '1.5px solid #6B3A1F', borderRadius: 8, cursor: 'pointer', fontSize: 13 },
-  deleteBtn: { padding: '9px 16px', background: '#C0392B', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13 },
-  tableWrap: { background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 2px 8px rgba(106,58,31,.07)' },
-  table: { width: '100%', borderCollapse: 'collapse' },
-  thead: { background: '#F2E4D0' },
-  th: { padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#6B3A1F', textTransform: 'uppercase', letterSpacing: 0.5 },
-  tr: { borderBottom: '1px solid #F5F0E8' },
-  td: { padding: '10px 14px', fontSize: 13, color: '#2E1503' },
-  empty: { padding: '32px', textAlign: 'center', color: '#8B5E3C', fontSize: 13 },
-  editBtn: { padding: '4px 10px', background: '#6B3A1F', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 11, marginRight: 6 },
-  archiveBtn: { padding: '4px 10px', background: '#fff', color: '#C0392B', border: '1px solid #C0392B', borderRadius: 5, cursor: 'pointer', fontSize: 11 },
-};

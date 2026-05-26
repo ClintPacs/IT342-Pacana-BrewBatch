@@ -22,15 +22,29 @@ public class RegisterRequest {
 
     private String role;
 
+    // Supplier-specific fields (used when role = SUPPLIER)
+    private String companyName;
+    private String contactName;
+    private String phone;
+    private String address;
+
     public String getUsername() { return username; }
     public String getFullName() { return fullName; }
     public String getEmail() { return email; }
     public String getPassword() { return password; }
     public String getRole() { return role; }
+    public String getCompanyName() { return companyName; }
+    public String getContactName() { return contactName; }
+    public String getPhone() { return phone; }
+    public String getAddress() { return address; }
 
     public void setUsername(String username) { this.username = username; }
     public void setFullName(String fullName) { this.fullName = fullName; }
     public void setEmail(String email) { this.email = email; }
     public void setPassword(String password) { this.password = password; }
     public void setRole(String role) { this.role = role; }
+    public void setCompanyName(String companyName) { this.companyName = companyName; }
+    public void setContactName(String contactName) { this.contactName = contactName; }
+    public void setPhone(String phone) { this.phone = phone; }
+    public void setAddress(String address) { this.address = address; }
 }

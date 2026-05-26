@@ -1,108 +1,151 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../auth/AuthContext';
-import AuthService from '../auth/authService';
-import InventoryService from '../inventory/inventoryService';
-import Sidebar from '../../shared/components/Sidebar';
+import React, { useContext } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Package, AlertTriangle, ClipboardList, Truck } from 'lucide-react';
+import { AuthContext } from '../auth/AuthContext';
+import inventoryService from '../inventory/inventoryService';
+import ordersService from '../orders/ordersService';
+import suppliersService from '../suppliers/suppliersService';
+import StatCard from '../../shared/components/ui/StatCard';
+import Card from '../../shared/components/ui/Card';
+import Badge from '../../shared/components/ui/Badge';
+import Table from '../../shared/components/ui/Table';
+import Skeleton from '../../shared/components/ui/Skeleton';
+import { useNavigate } from 'react-router-dom';
 
 export default function DashboardPage() {
-  const { user } = useAuth();
-  const [profile, setProfile] = useState(null);
-  const [stats, setStats] = useState({ total: 0, lowStock: 0 });
-  const [loading, setLoading] = useState(true);
- 
+  const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [prof, items, alerts] = await Promise.all([
-          AuthService.getCurrentUser(),
-          InventoryService.getAll(),
-          InventoryService.getAlerts(),
-        ]);
-        setProfile(prof);
-        setStats({ total: items.length, lowStock: alerts.length });
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
+  const greeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+
+  const { data: inventoryData, isLoading: invLoading } = useQuery({
+    queryKey: ['inventory'],
+    queryFn: () => inventoryService.getAll(),
+  });
+
+  const { data: alertsData, isLoading: alertLoading } = useQuery({
+    queryKey: ['alerts'],
+    queryFn: () => inventoryService.getAlerts(),
+  });
+
+  const { data: ordersData, isLoading: ordLoading } = useQuery({
+    queryKey: ['orders'],
+    queryFn: () => ordersService.getAll(),
+  });
+
+  const { data: suppliersData, isLoading: supLoading } = useQuery({
+    queryKey: ['suppliers'],
+    queryFn: () => suppliersService.getAll(),
+  });
+
+  const items = Array.isArray(inventoryData) ? inventoryData : [];
+  const alerts = Array.isArray(alertsData) ? alertsData : [];
+  const orders = Array.isArray(ordersData) ? ordersData : [];
+  const suppliers = Array.isArray(suppliersData) ? suppliersData : [];
+  const pendingOrders = orders.filter(o => o.status === 'PENDING');
+
+  const orderColumns = [
+    { key: 'id', label: 'ID', render: (r) => <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>#{r.id}</span> },
+    { key: 'supplier', label: 'Supplier' },
+    { key: 'item', label: 'Item' },
+    { key: 'status', label: 'Status', render: (r) => <Badge status={r.status} /> },
+    { key: 'totalCost', label: 'Total', render: (r) => `₱${(r.totalCost || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+  ];
 
   return (
-    <div style={s.layout}>
-      {/* Top Nav */}
-      <nav style={s.topnav}>
-        <div style={s.navLogo}>☕ BrewBatch</div>
-        <span style={s.navUser}>
-          Welcome, <strong>{user?.username || profile?.username}</strong>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <h3 style={{ fontSize: '22px', fontWeight: 600, letterSpacing: '-0.02em', color: '#2E1503', fontFamily: "'Inter', sans-serif" }}>
+          {greeting()}, {user?.fullName || user?.username} 👋
+        </h3>
+        <span style={{ fontSize: '13px', color: '#8B5E3C', fontFamily: "'Inter', sans-serif" }}>
+          {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </span>
-      </nav>
+      </div>
 
-      <div style={s.body}>
-        <Sidebar />
-        <main style={s.main}>
-          <h2 style={s.title}>Dashboard</h2>
+      {/* Stat Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+        <StatCard
+          icon={<Package size={20} />}
+          value={invLoading ? '...' : items.length}
+          label="Total Inventory Items"
+        />
+        <StatCard
+          icon={<AlertTriangle size={20} />}
+          value={alertLoading ? '...' : alerts.length}
+          label="Low Stock Alerts"
+          color={alerts.length > 0 ? '#C0392B' : undefined}
+        />
+        <StatCard
+          icon={<ClipboardList size={20} />}
+          value={ordLoading ? '...' : pendingOrders.length}
+          label="Open Orders"
+        />
+        <StatCard
+          icon={<Truck size={20} />}
+          value={supLoading ? '...' : suppliers.length}
+          label="Active Suppliers"
+        />
+      </div>
 
-          {/* Stat Cards */}
-          <div style={s.grid}>
-            <StatCard icon="📦" label="Total Items" value={stats.total} color="#6B3A1F" />
-            <StatCard icon="⚠️" label="Low Stock" value={stats.lowStock} color="#C0392B" />
-            <StatCard icon="✅" label="Status" value="Active" color="#27AE60" />
-          </div>
+      {/* Two-column layout */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '24px' }}>
+        {/* Recent Orders */}
+        <Card>
+          <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#2E1503', marginBottom: '16px', fontFamily: "'Inter', sans-serif" }}>
+            Recent Orders
+          </h4>
+          <Table
+            columns={orderColumns}
+            data={orders.slice(0, 5)}
+            loading={ordLoading}
+            emptyTitle="No orders yet"
+            emptySubtitle="Create your first purchase order."
+            emptyAction="Go to Orders"
+            onEmptyAction={() => navigate('/orders')}
+          />
+        </Card>
 
-          {/* Profile Card */}
-          {loading ? (
-            <p style={{ color: '#8B5E3C' }}>Loading profile...</p>
-          ) : profile && (
-            <div style={s.card}>
-              <div style={s.cardHead}>👤 My Profile</div>
-              {[
-                ['Username', profile.username],
-                ['Full Name', profile.fullName || '—'],
-                ['Email', profile.email],
-                ['Role', profile.role],
-                ['ID', `#${profile.id}`],
-              ].map(([k, v]) => (
-                <div key={k} style={s.row}>
-                  <span style={s.key}>{k}</span>
-                  <span style={s.val}>{v}</span>
-                </div>
+        {/* Low Stock */}
+        <div>
+          <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#2E1503', marginBottom: '16px', fontFamily: "'Inter', sans-serif" }}>
+            Low Stock Alerts
+          </h4>
+          {alertLoading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {[1,2,3].map(i => <Skeleton key={i} height="72px" borderRadius="12px" />)}
+            </div>
+          ) : alerts.length === 0 ? (
+            <Card>
+              <p style={{ color: '#8B5E3C', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
+                ✅ All items are well-stocked
+              </p>
+            </Card>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {alerts.slice(0, 5).map(item => (
+                <Card key={item.id} hover onClick={() => navigate('/inventory')}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '14px', color: '#2E1503' }}>{item.name}</div>
+                      <div style={{ fontSize: '12px', marginTop: '4px' }}>
+                        <span style={{ color: '#C0392B', fontWeight: 600 }}>Current: {item.currentStock} {item.unit}</span>
+                        <span style={{ color: '#8B5E3C', marginLeft: '8px' }}>Threshold: {item.reorderThreshold}</span>
+                      </div>
+                    </div>
+                    <Badge status="LOW STOCK" />
+                  </div>
+                </Card>
               ))}
             </div>
           )}
-        </main>
+        </div>
       </div>
     </div>
   );
 }
-
-function StatCard({ icon, label, value, color }) {
-  return (
-    <div style={s.statCard}>
-      <span style={{ fontSize: 28 }}>{icon}</span>
-      <div>
-        <div style={{ fontSize: 24, fontWeight: 700, color }}>{value}</div>
-        <div style={{ fontSize: 11, color: '#8B5E3C', marginTop: 2 }}>{label}</div>
-      </div>
-    </div>
-  );
-}
-
-const s = {
-  layout: { minHeight: '100vh', background: '#FAF4EC', display: 'flex', flexDirection: 'column' },
-  topnav: { background: '#4A2008', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  navLogo: { fontFamily: 'serif', fontSize: 16, fontWeight: 700, color: '#fff' },
-  navUser: { color: '#D9B896', fontSize: 13 },
-  body: { display: 'flex', flex: 1 },
-  main: { flex: 1, padding: 24 },
-  title: { fontFamily: 'serif', fontSize: 22, color: '#2E1503', marginBottom: 20 },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 24 },
-  statCard: { background: '#fff', borderRadius: 10, padding: 16, display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 2px 8px rgba(106,58,31,.07)' },
-  card: { background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 2px 12px rgba(106,58,31,.08)', maxWidth: 500 },
-  cardHead: { background: '#F2E4D0', padding: '10px 16px', fontSize: 12, fontWeight: 600, color: '#6B3A1F' },
-  row: { display: 'flex', alignItems: 'center', padding: '9px 16px', borderBottom: '1px solid #F5F0E8' },
-  key: { width: 100, fontSize: 10, color: '#8B5E3C', textTransform: 'uppercase', fontWeight: 500 },
-  val: { fontSize: 13, fontWeight: 500, color: '#2E1503' },
-};

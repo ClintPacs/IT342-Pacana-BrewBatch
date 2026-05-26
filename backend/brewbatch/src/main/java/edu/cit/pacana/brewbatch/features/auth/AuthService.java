@@ -1,5 +1,7 @@
 package edu.cit.pacana.brewbatch.features.auth;
 
+import edu.cit.pacana.brewbatch.features.suppliers.Supplier;
+import edu.cit.pacana.brewbatch.features.suppliers.SupplierRepository;
 import edu.cit.pacana.brewbatch.features.users.User;
 import edu.cit.pacana.brewbatch.features.users.UserRepository;
 import edu.cit.pacana.brewbatch.shared.dto.MessageResponse;
@@ -16,15 +18,18 @@ import org.springframework.stereotype.Service;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final SupplierRepository supplierRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtUtils jwtUtils;
 
     public AuthService(UserRepository userRepository,
+                       SupplierRepository supplierRepository,
                        PasswordEncoder passwordEncoder,
                        AuthenticationManager authenticationManager,
                        JwtUtils jwtUtils) {
         this.userRepository = userRepository;
+        this.supplierRepository = supplierRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtUtils = jwtUtils;
@@ -59,6 +64,18 @@ public class AuthService {
         }
 
         userRepository.save(user);
+
+        // ── Auto-create Supplier record when role is SUPPLIER ──
+        if (user.getRole() == User.Role.SUPPLIER) {
+            Supplier supplier = new Supplier();
+            supplier.setName(request.getCompanyName() != null ? request.getCompanyName() : request.getFullName());
+            supplier.setContactName(request.getContactName() != null ? request.getContactName() : request.getFullName());
+            supplier.setEmail(request.getEmail());
+            supplier.setPhone(request.getPhone());
+            supplier.setAddress(request.getAddress());
+            supplierRepository.save(supplier);
+        }
+
         return new MessageResponse(true,
                 "User registered successfully!");
     }

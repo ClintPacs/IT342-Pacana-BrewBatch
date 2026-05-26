@@ -34,26 +34,72 @@ public class User {
     private LocalDateTime createdAt = LocalDateTime.now();
 
     public enum Role {
-        BARISTA, MANAGER, ADMIN
+        BARISTA, MANAGER, ADMIN, SUPPLIER
     }
 
     // Getters
-    public Long getId() { return id; }
-    public String getUsername() { return username; }
-    public String getEmail() { return email; }
-    public String getPasswordHash() { return passwordHash; }
-    public String getFullName() { return fullName; }
-    public Role getRole() { return role; }
-    public boolean isActive() { return isActive; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
+    public Long getId() {
+        return id;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public String getFullName() {
+        return fullName;
+    }
+
+    public Role getRole() {
+        return role;
+    }
+
+    public boolean isActive() {
+        return isActive;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
 
     // Setters
-    public void setId(Long id) { this.id = id; }
-    public void setUsername(String username) { this.username = username; }
-    public void setEmail(String email) { this.email = email; }
-    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
-    public void setFullName(String fullName) { this.fullName = fullName; }
-    public void setRole(Role role) { this.role = role; }
-    public void setActive(boolean active) { isActive = active; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
+    public void setRole(Role role) {
+        this.role = role;
+    }
+
+    public void setActive(boolean active) {
+        isActive = active;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
 }
